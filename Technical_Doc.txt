@@ -1,0 +1,113 @@
+Technical Design Document: Asynchronous Image Processing System
+1. Overview
+The system is designed to accept a CSV file containing product information and associated image URLs, process those images asynchronously (compressing by 50%), and store the processed image URLs. It provides APIs to:
+
+Upload the CSV and initiate the processing.
+Check the status of the processing request using a unique request ID.
+Download a CSV containing both input and processed image URLs after completion.
+(Optional) Notify a user via a webhook once processing is complete.
+2. Architecture
+2.1 Components
+Upload API:
+
+Function: Receives the CSV, validates it, stores the request in the database, and triggers asynchronous image processing.
+Input: CSV file and an optional webhook URL.
+Output: Unique request ID.
+Asynchronous Image Processing:
+
+Function: Images are downloaded from the URLs provided in the CSV, compressed to 50% of their original quality, and stored (simulated with URLs).
+Technology: Celery with Redis as the message broker for asynchronous task execution.
+Database:
+
+Function: Stores product information, input URLs, output URLs, and the processing request status.
+Technology: SQLAlchemy ORM with SQLite (can be swapped for a production-ready database like PostgreSQL or MySQL).
+Status API:
+
+Function: Allows users to query the processing status using the unique request ID.
+Input: Request ID.
+Output: Status of the request (Pending, Completed).
+CSV Download API:
+
+Function: After the image processing is complete, this API allows users to download the output CSV containing both input and processed image URLs.
+Webhook (Optional):
+
+Function: Notifies the provided webhook URL with the processing result once completed.
+3. High-Level System Flow
+User Uploads CSV:
+
+The user uploads a CSV containing product names and image URLs via the Upload API.
+A unique request ID is generated and returned.
+If a webhook URL is provided, it is stored with the request.
+CSV Validation:
+
+The CSV is validated to ensure it contains the necessary fields: Product Name and Input Image URLs.
+Asynchronous Processing:
+
+Celery workers fetch the image URLs and compress each image asynchronously.
+The processed images are stored, and their URLs are added to the database.
+Database Update:
+
+The system updates the database with the output (processed) image URLs and marks the request as “Completed” once the task is done.
+Status Check:
+
+The user can check the processing status by providing the request ID.
+Webhook Notification (if provided):
+
+Once processing is complete, the system sends a notification to the webhook URL with the request status and ID.
+Download Output CSV:
+
+The user can download the final CSV file containing both the input and output image URLs.
+4. Database Schema
+ProcessingRequest Table:
+
+id (Primary Key)
+request_id (Unique String): Identifies each processing request.
+status (String): Tracks the status of the request (Pending, Completed).
+webhook_url (String, Optional): Stores the webhook URL, if provided.
+created_at (Timestamp): Tracks when the request was made.
+Product Table:
+
+id (Primary Key)
+request_id (Foreign Key to ProcessingRequest): Associates each product with a specific request.
+product_name (String): The name of the product.
+input_image_urls (String): Comma-separated input image URLs.
+output_image_urls (String): Comma-separated output (compressed) image URLs.
+5. System Diagram
+You can create this diagram in Draw.io, Lucidchart, or Google Drawings to visually represent the system flow.
+
+Diagram Components:
+
+User: Uploads CSV → Sends request to Upload API.
+Upload API: Returns a unique request ID → Saves request in Database → Triggers Celery Worker.
+Celery Worker: Downloads images → Compresses images → Updates Database with output URLs.
+Database: Stores the input/output image URLs and tracks the request status.
+Status API: Allows users to query the request status.
+CSV Download API: Generates a downloadable CSV with input/output image URLs.
+Webhook: Optionally sends a notification when processing is complete.
+6. Data Flow
+Input CSV Format:
+
+bash
+Copy code
+S. No, Product Name, Input Image Urls
+1, SKU1, https://www.example.com/image1.jpg,https://www.example.com/image2.jpg
+2, SKU2, https://www.example.com/image3.jpg,https://www.example.com/image4.jpg
+Output CSV Format:
+
+bash
+Copy code
+S. No, Product Name, Input Image Urls, Output Image Urls
+1, SKU1, https://www.example.com/image1.jpg, https://www.example.com/compressed_image1.jpg
+2, SKU2, https://www.example.com/image3.jpg, https://www.example.com/compressed_image3.jpg
+7. Error Handling
+CSV Validation: If the CSV is not properly formatted, the system returns a validation error.
+Image Processing Errors: If an image cannot be downloaded or compressed, the system marks the specific image as failed and logs the error.
+Webhook Failure: If the webhook URL is invalid or fails, the system logs the error but continues processing.
+8. Technology Stack
+Backend Framework: Flask (Python)
+Asynchronous Task Queue: Celery with Redis as a broker
+Database: SQLite (can be swapped with PostgreSQL or MySQL)
+Image Processing: Python's Pillow library
+Deployment Considerations: Flask app deployed on a web server like Gunicorn, Redis running for Celery tasks.
+9. Conclusion
+This system is designed to efficiently process image data asynchronously, with a flexible architecture that allows for webhook integration and output file generation. By using Celery, the image processing is decoupled from the main application, ensuring scalability and responsiveness even when handling large volumes of image processing tasks
